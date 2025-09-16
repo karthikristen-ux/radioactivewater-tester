@@ -3,16 +3,13 @@ import pandas as pd
 import plotly.graph_objects as go
 import os
 import time
-
-# ================= GOOGLE SITE VERIFICATION =================
-st.markdown("""
-<head>
-    <meta name="google-site-verification" content="google428314d1749adc2d" />
-</head>
-""", unsafe_allow_html=True)
+import joblib
 
 # ================= PAGE CONFIG =================
 st.set_page_config(page_title="Radioactive Water Contamination Detector", layout="wide")
+
+# ================= LOAD AI MODEL =================
+model = joblib.load("models/contaminant_model.pkl")
 
 # ================= CUSTOM CSS =================
 css_block = """
@@ -72,14 +69,15 @@ p.app-sub {
 """
 st.markdown(css_block, unsafe_allow_html=True)
 
-# ================= FUNCTIONS =================
-def predict_contamination(ph, tds, hardness, nitrate):
-    score = 0
-    if ph < 6.5 or ph > 8.5: score += 30
-    if tds > 500: score += 25
-    if hardness > 200: score += 20
-    if nitrate > 45: score += 25
-    return score
+# ================= AI PREDICTION FUNCTION =================
+def predict_contamination_ai(ph, tds, hardness, nitrate, uranium):
+    input_data = [[ph, nitrate, tds, hardness, uranium]]
+    prediction = model.predict(input_data)[0]
+
+    if prediction == 0:
+        return "✅ Safe: No significant radioactive contamination detected.", 20
+    else:
+        return "☢️ High Risk: Potential radioactive contamination detected!", 80
 
 # ================= UI =================
 st.markdown("<h1 class='app-title'>💧☢️ Radioactive Water Contamination Detector</h1>", unsafe_allow_html=True)
@@ -95,17 +93,11 @@ with tabs[0]:
     tds = st.number_input("TDS (mg/L)", 0.0, 2000.0, 300.0)
     hardness = st.number_input("Hardness (mg/L)", 0.0, 1000.0, 150.0)
     nitrate = st.number_input("Nitrate (mg/L)", 0.0, 500.0, 20.0)
+    uranium = st.number_input("Uranium (µg/L)", 0.0, 100.0, 10.0)
     location = st.text_input("📍 Location")
 
     if st.button("Run Analysis"):
-        score = predict_contamination(ph, tds, hardness, nitrate)
-
-        if score < 30:
-            result = '✅ Safe: No significant radioactive contamination detected.'
-        elif score < 60:
-            result = '⚠️ Moderate Risk: Some radioactive traces possible.'
-        else:
-            result = '☢️ High Risk: Potential radioactive contamination detected!'
+        result, score = predict_contamination_ai(ph, tds, hardness, nitrate, uranium)
 
         st.markdown(f"<p style='font-size:20px; color:#FFD300;'>{result}</p>", unsafe_allow_html=True)
 
@@ -126,15 +118,14 @@ with tabs[0]:
         ))
         gauge_placeholder = st.empty()
 
-        # Animate the needle smoothly
         for i in range(0, int(score)+1, 2):
             fig.update_traces(value=i)
             gauge_placeholder.plotly_chart(fig, use_container_width=True)
             time.sleep(0.02)
 
         # ----------------- Save Dataset -----------------
-        new_data = pd.DataFrame([[location, ph, tds, hardness, nitrate, score]],
-                                columns=["Location", "pH", "TDS", "Hardness", "Nitrate", "RiskScore"])
+        new_data = pd.DataFrame([[location, ph, tds, hardness, nitrate, uranium, score]],
+                                columns=["Location", "pH", "TDS", "Hardness", "Nitrate", "Uranium", "RiskScore"])
         if os.path.exists("water_data.csv"):
             old_data = pd.read_csv("water_data.csv")
             df = pd.concat([old_data, new_data], ignore_index=True)
@@ -153,8 +144,9 @@ with tabs[1]:
     safe_ranges = {
         "pH": (6.5, 8.5, ph),
         "TDS (mg/L)": (0, 500, tds),
-        "Hardness (mg/L)": (0, 200, hardness),
-        "Nitrate (mg/L)": (0, 45, nitrate)
+        "Hardness (mg/L)": (0, 300, hardness),
+        "Nitrate (mg/L)": (0, 45, nitrate),
+        "Uranium (µg/L)": (0, 30, uranium)
     }
 
     params = list(safe_ranges.items())
@@ -178,7 +170,6 @@ with tabs[1]:
                         name=f"{param} Value",
                         marker_color="red" if value < low or value > high else "#39FF14"
                     ))
-                    # Safe range overlay
                     fig.add_shape(
                         type="rect",
                         x0=-0.5, x1=0.5,
@@ -223,53 +214,11 @@ with tabs[2]:
     st.subheader("⚠️ Dangers of Radioactive Water")
     st.image("radioactive_process.png", caption="Radioactive Contamination Process", use_container_width=True)
 
-    sections = [
-        {
-            "title": "☢️ Health Risks",
-            "title_color": "#FFD700",
-            "content": [
-                ('Cancer: Long-term exposure to radioactive elements can increase cancer risk.', "https://ensia.com/features/radioactive-contamination-drinking-water-radium-radon-uranium/?utm_source=chatgpt.com"),
-                ('Organ Damage: Kidney and liver dysfunction may occur.', "https://pmc.ncbi.nlm.nih.gov/articles/PMC3261972/?utm_source=chatgpt.com"),
-                ('Genetic Mutations: Can affect future generations.', "https://link.springer.com/chapter/10.1007/978-3-031-89591-3_10?utm_source=chatgpt.com")
-            ]
-        },
-        {
-            "title": "🌍 Environmental Impact",
-            "title_color": "#FFD700",
-            "content": [
-                ('Bioaccumulation: Radioactive isotopes accumulate in plants & animals.', "https://ensia.com/features/radioactive-contamination-drinking-water-radium-radon-uranium/?utm_source=chatgpt.com"),
-                ('Ecosystem Disruption: Contaminated water affects biodiversity.', None)
-            ]
-        },
-        {
-            "title": "🛡️ WHO Guidelines",
-            "title_color": "#FFD700",
-            "content": [
-                ('WHO Guidelines for Drinking-water Quality', "https://apps.who.int/iris/bitstream/handle/10665/44584/9789241548151_eng.pdf?utm_source=chatgpt.com"),
-                ('Chapter 9: Radiological Aspects', "https://cdn.who.int/media/docs/default-source/wash-documents/water-safety-and-quality/dwq-guidelines-4/gdwq4-with-add1-chap9.pdf?sfvrsn=6fc78cae_3&utm_source=chatgpt.com")
-            ]
-        },
-        {
-            "title": "📚 Further Reading",
-            "title_color": "#FFD700",
-            "content": [
-                ('Health Effects of Naturally Radioactive Water Ingestion', "https://pmc.ncbi.nlm.nih.gov/articles/PMC3261972/?utm_source=chatgpt.com"),
-                ('Radioactive Contaminants in Drinking Water and Their Health Effects', "https://www.ncbi.nlm.nih.gov/books/NBK234160/?utm_source=chatgpt.com")
-            ]
-        }
-    ]
-
-    for sec in sections:
-        html_content = f'<div style="background-color:#111111; padding:15px; border-radius:12px; margin-bottom:10px;">'
-        html_content += f'<h4 style="color:{sec["title_color"]};">{sec["title"]}</h4><ul style="color:#f0f0f0;">'
-        for text, link in sec["content"]:
-            if link:
-                html_content += f'<li>{text} <a href="{link}" target="_blank" style="color:#00FF7F;">[Read More]</a></li>'
-            else:
-                html_content += f'<li>{text}</li>'
-        html_content += '</ul></div>'
-        st.markdown(html_content, unsafe_allow_html=True)
-
+    st.markdown("""
+    - ☢️ **Health Risks**: Cancer, organ damage, genetic mutations.  
+    - 🌍 **Environmental Impact**: Bioaccumulation, ecosystem disruption.  
+    - 🛡️ **WHO Guidelines**: Follow safe limits for pH, TDS, Hardness, Nitrate, and Uranium.  
+    """)
     st.info("ℹ️ Stay informed and take action to ensure safe drinking water.")
 
 # Connect Section
@@ -282,4 +231,3 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
-
