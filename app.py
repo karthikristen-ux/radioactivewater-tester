@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import joblib
-import os
 import time
-import numpy as np
+import os
 
 # ================= GOOGLE SITE VERIFICATION =================
 st.markdown("""
@@ -21,12 +20,30 @@ css_block = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 
-* { font-family: 'Bebas Neue', sans-serif !important; }
+* {
+  font-family: 'Bebas Neue', sans-serif !important;
+}
 
-html, body, [class*="css"] { background-color: #0a0a0a; color: #e8f5e9; min-height: 100vh; }
+html, body, [class*="css"] {
+  background-color: #0a0a0a;
+  color: #e8f5e9;
+  min-height: 100vh;
+}
 
-h1.app-title { text-align: center; color: #FFD300; font-size: 52px; margin-bottom: 4px; text-shadow: 0 0 10px #FFD300, 0 0 28px #FF7518; }
-p.app-sub { text-align: center; color: #39FF14; margin-top: 0; font-size: 20px; text-shadow: 0 0 10px #39FF14; }
+h1.app-title {
+  text-align: center;
+  color: #FFD300;
+  font-size: 52px;
+  margin-bottom: 4px;
+  text-shadow: 0 0 10px #FFD300, 0 0 28px #FF7518;
+}
+p.app-sub {
+  text-align: center;
+  color: #39FF14;
+  margin-top: 0;
+  font-size: 20px;
+  text-shadow: 0 0 10px #39FF14;
+}
 
 .stTabs [role="tablist"] button {
     background: #101010 !important;
@@ -56,11 +73,11 @@ st.markdown(css_block, unsafe_allow_html=True)
 
 # ================= LOAD AI MODEL =================
 model_path = "models/contaminant_model.pkl"
-if not os.path.exists(model_path):
+if os.path.exists(model_path):
+    model = joblib.load(model_path)
+else:
     st.error("❌ AI model not found! Please run train_model.py first.")
     st.stop()
-
-model = joblib.load(model_path)
 
 # ================= UI =================
 st.markdown("<h1 class='app-title'>💧☢️ Radioactive Water Contamination Detector</h1>", unsafe_allow_html=True)
@@ -76,19 +93,18 @@ with tabs[0]:
     tds = st.number_input("TDS (mg/L)", 0.0, 2000.0, 300.0)
     hardness = st.number_input("Hardness (mg/L)", 0.0, 1000.0, 150.0)
     nitrate = st.number_input("Nitrate (mg/L)", 0.0, 500.0, 20.0)
-    uranium = st.number_input("Uranium (ppb)", 0.0, 200.0, 10.0)
+    uranium = st.number_input("Uranium (µg/L)", 0.0, 100.0, 5.0)
     location = st.text_input("📍 Location")
 
     if st.button("Run Analysis"):
-        input_data = np.array([[ph, nitrate, tds, hardness, uranium]])
-        prediction = model.predict(input_data)[0]  # 0 = Safe, 1 = Unsafe
+        X_input = pd.DataFrame([[ph, nitrate, tds, hardness, uranium]], columns=["pH", "Nitrate", "TDS", "Hardness", "Uranium"])
+        prediction = model.predict(X_input)[0]
+        probability = model.predict_proba(X_input)[0][1] * 100
 
         if prediction == 0:
-            result = '✅ Safe: No significant radioactive contamination detected.'
-            score = 20
+            result = f"✅ Safe: No significant radioactive contamination detected. Risk Score: {probability:.1f}%"
         else:
-            result = '☢️ High Risk: Potential radioactive contamination detected!'
-            score = 80
+            result = f"☢️ High Risk: Potential radioactive contamination detected! Risk Score: {probability:.1f}%"
 
         st.markdown(f"<p style='font-size:20px; color:#FFD300;'>{result}</p>", unsafe_allow_html=True)
 
@@ -99,7 +115,7 @@ with tabs[0]:
             title={'text': "Radioactive Risk %"},
             gauge={
                 'axis': {'range': [0, 100]},
-                'bar': {'color': "red" if score >= 60 else "orange" if score >= 30 else "#39FF14"},
+                'bar': {'color': "red" if prediction==1 else "#39FF14"},
                 'steps': [
                     {'range': [0, 30], 'color': "#39FF14"},
                     {'range': [30, 60], 'color': "yellow"},
@@ -108,14 +124,14 @@ with tabs[0]:
             }
         ))
         gauge_placeholder = st.empty()
-        for i in range(0, int(score)+1, 2):
+        for i in range(0, int(probability)+1, 2):
             fig.update_traces(value=i)
             gauge_placeholder.plotly_chart(fig, use_container_width=True)
             time.sleep(0.02)
 
         # ----------------- Save Dataset -----------------
-        new_data = pd.DataFrame([[location, ph, tds, hardness, nitrate, uranium, score]],
-                                columns=["Location", "pH", "TDS", "Hardness", "Nitrate", "Uranium", "RiskScore"])
+        new_data = pd.DataFrame([[location, ph, tds, hardness, nitrate, uranium, probability, prediction]],
+                                columns=["Location", "pH", "TDS", "Hardness", "Nitrate", "Uranium", "RiskScore", "Label"])
         if os.path.exists("water_data.csv"):
             old_data = pd.read_csv("water_data.csv")
             df = pd.concat([old_data, new_data], ignore_index=True)
@@ -134,54 +150,52 @@ with tabs[1]:
     safe_ranges = {
         "pH": (6.5, 8.5, ph),
         "TDS (mg/L)": (0, 500, tds),
-        "Hardness": (0, 200, hardness),
-        "Nitrate": (0, 45, nitrate),
-        "Uranium": (0, 30, uranium)
+        "Hardness (mg/L)": (0, 200, hardness),
+        "Nitrate (mg/L)": (0, 45, nitrate),
+        "Uranium (µg/L)": (0, 30, uranium)
     }
 
     params = list(safe_ranges.items())
-
     for i in range(0, len(params), 2):
         cols = st.columns(2)
         for j, col in enumerate(cols):
-            if i + j >= len(params):
+            if i+j >= len(params):
                 break
-            param, (low, high, value) = params[i + j]
+            param, (low, high, value) = params[i+j]
             with col:
-                subcols = st.columns([1.1, 1.0, 0.7])
-                with subcols[0]:
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(
-                        x=[param],
-                        y=[value],
-                        name=f"{param} Value",
-                        marker_color="red" if value < low or value > high else "#39FF14"
-                    ))
-                    fig.add_shape(
-                        type="rect",
-                        x0=-0.5, x1=0.5,
-                        y0=low, y1=high,
-                        fillcolor="rgba(57,255,20,0.2)",
-                        line_width=0
-                    )
-                    fig.update_layout(
-                        title=f"{param} Level",
-                        barmode="overlay",
-                        height=180, width=180,
-                        margin=dict(l=10, r=10, t=30, b=10)
-                    )
-                    st.plotly_chart(fig, use_container_width=False)
-                with subcols[1]:
-                    st.markdown(
-                        f"<div style='font-size:16px; color:#FFD300;'><b>{param}</b><br>Safe Range: {low} – {high}<br>Your Value: <span style='color:{'red' if value < low or value > high else '#39FF14'};'>{value}</span></div>",
-                        unsafe_allow_html=True
-                    )
-                with subcols[2]:
-                    status = "✅ Safe" if low <= value <= high else "⚠️ Unsafe"
-                    color = "#39FF14" if low <= value <= high else "red"
-                    st.markdown(f"<div style='font-size:18px; color:{color};'><b>{status}</b></div>", unsafe_allow_html=True)
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=[param],
+                    y=[value],
+                    name=f"{param} Value",
+                    marker_color="red" if value<low or value>high else "#39FF14"
+                ))
+                fig.add_shape(
+                    type="rect",
+                    x0=-0.5, x1=0.5,
+                    y0=low, y1=high,
+                    fillcolor="rgba(57,255,20,0.2)",
+                    line_width=0
+                )
+                fig.update_layout(title=f"{param} Level", barmode="overlay", height=180, width=180,
+                                  margin=dict(l=10,r=10,t=30,b=10))
+                st.plotly_chart(fig, use_container_width=False)
 
-    st.info("ℹ️ Compare your water parameters above with the WHO safe ranges.")
+                # Display Value
+                st.markdown(f"""
+                <div style="font-size:16px; color:#FFD300;">
+                <b>{param}</b><br>
+                Safe Range: {low} – {high}<br>
+                Your Value: <span style="color:{'red' if value<low or value>high else '#39FF14'};">{value}</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Status
+                status = "✅ Safe" if low<=value<=high else "⚠️ Unsafe"
+                color = "#39FF14" if low<=value<=high else "red"
+                st.markdown(f"<div style='font-size:18px; color:{color};'><b>{status}</b></div>", unsafe_allow_html=True)
+
+    st.info("ℹ️ Compare your water parameters above with WHO safe ranges.")
 
 # ---- TAB 3 ----
 with tabs[2]:
@@ -198,3 +212,36 @@ with tabs[2]:
             ('Bioaccumulation: Radioactive isotopes accumulate in plants & animals.', "https://ensia.com/features/radioactive-contamination-drinking-water-radium-radon-uranium/?utm_source=chatgpt.com"),
             ('Ecosystem Disruption: Contaminated water affects biodiversity.', None)
         ]},
+        {"title": "🛡️ WHO Guidelines", "title_color": "#FFD700", "content": [
+            ('WHO Guidelines for Drinking-water Quality', "https://apps.who.int/iris/bitstream/handle/10665/44584/9789241548151_eng.pdf?utm_source=chatgpt.com"),
+            ('Chapter 9: Radiological Aspects', "https://cdn.who.int/media/docs/default-source/wash-documents/water-safety-and-quality/dwq-guidelines-4/gdwq4-with-add1-chap9.pdf?sfvrsn=6fc78cae_3&utm_source=chatgpt.com")
+        ]},
+        {"title": "📚 Further Reading", "title_color": "#FFD700", "content": [
+            ('Health Effects of Naturally Radioactive Water Ingestion', "https://pmc.ncbi.nlm.nih.gov/articles/PMC3261972/?utm_source=chatgpt.com"),
+            ('Radioactive Contaminants in Drinking Water and Their Health Effects', "https://www.ncbi.nlm.nih.gov/books/NBK234160/?utm_source=chatgpt.com")
+        ]}
+    ]
+
+    for sec in sections:
+        html_content = f'<div style="background-color:#111111; padding:15px; border-radius:12px; margin-bottom:10px;">'
+        html_content += f'<h4 style="color:{sec["title_color"]};">{sec["title"]}</h4><ul style="color:#f0f0f0;">'
+        for text, link in sec["content"]:
+            if link:
+                html_content += f'<li>{text} <a href="{link}" target="_blank" style="color:#00FF7F;">[Read More]</a></li>'
+            else:
+                html_content += f'<li>{text}</li>'
+        html_content += '</ul></div>'
+        st.markdown(html_content, unsafe_allow_html=True)
+
+    st.info("ℹ️ Stay informed and take action to ensure safe drinking water.")
+
+# ---------------- CONNECT ----------------
+st.markdown("""
+<div style="text-align:center; margin-top:10px;">
+    <p style="color:#FFD300; font-size:16px;">
+        Connect with me: 
+        <a href="https://www.linkedin.com/in/karthikeyan-t-82a86931a" target="_blank" style="color:#00FF7F;">LinkedIn</a> | 
+        <a href="mailto:karthikeyant1885@gmail.com" style="color:#00FF7F;">Email</a>
+    </p>
+</div>
+""", unsafe_allow_html=True)
