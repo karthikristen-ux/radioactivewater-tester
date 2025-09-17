@@ -1,48 +1,31 @@
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 import os
 
-# -------------------------------
-# Load Dataset
-# -------------------------------
-data_path = "water_dataset.csv"
-df = pd.read_csv(data_path)
+# Example dataset (replace with real CSV if available)
+df = pd.DataFrame({
+    "pH": np.random.uniform(6, 9, 200),
+    "TDS": np.random.uniform(100, 1500, 200),
+    "Nitrate": np.random.uniform(0, 100, 200),
+    "Hardness": np.random.uniform(50, 500, 200),
+    "CPM": np.random.uniform(5, 100, 200),  # counts per minute from GM tube
+    "Element": np.random.choice(["Uranium", "Cesium", "Strontium", "Safe"], 200)
+})
 
-# -------------------------------
-# Check required columns
-# -------------------------------
-required_cols = ["pH","TDS","Hardness","Nitrate","Conductivity","Element"]
-for col in required_cols:
-    if col not in df.columns:
-        raise ValueError(f"Missing column in dataset: {col}")
+X = df[["pH", "TDS", "Nitrate", "Hardness", "CPM"]]
+y = df["Element"]
 
-# -------------------------------
-# Prepare Features & Labels
-# -------------------------------
-X = df[["pH","TDS","Hardness","Nitrate","Conductivity"]]
-y = df["Element"]  # Uranium, Cesium, Radium
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# -------------------------------
-# Train-Test Split
-# -------------------------------
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
-# -------------------------------
-# Train Random Forest Model
-# -------------------------------
-model = RandomForestClassifier(n_estimators=200, random_state=42)
+model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-accuracy = model.score(X_test, y_test)
-print(f"✅ Model trained with accuracy: {accuracy:.2f}")
+print("✅ Accuracy:", model.score(X_test, y_test))
 
-# -------------------------------
-# Save Model
-# -------------------------------
+# Save model
 os.makedirs("models", exist_ok=True)
-joblib.dump(model, "models/element_model.pkl")
-print("💾 Model saved at models/element_model.pkl")
+joblib.dump(model, "models/water_model.pkl")
+print("💾 Model saved at models/water_model.pkl")
