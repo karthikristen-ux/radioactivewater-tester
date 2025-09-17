@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import numpy as np
 
 # ================= PAGE CONFIG =================
 st.set_page_config(page_title="Radioactive Water Contamination Detector", layout="wide")
@@ -74,7 +73,6 @@ p.app-sub {
 }
 </style>
 """
-
 st.markdown(css_block, unsafe_allow_html=True)
 
 # ================= FUNCTIONS =================
@@ -103,39 +101,21 @@ def show_risk_gauge(score):
     ))
     st.plotly_chart(fig, use_container_width=True)
 
-def show_heat_map(ph, tds, hardness, nitrate):
-    data = np.array([
-        [ph, tds, hardness, nitrate],
-        [ph, tds, hardness, nitrate],
-        [ph, tds, hardness, nitrate],
-        [ph, tds, hardness, nitrate]
-    ])
-    colorscale = [[0, 'green'], [0.5, 'yellow'], [1, 'red']]
-    fig = go.Figure(data=go.Heatmap(
-        z=data,
-        colorscale=colorscale,
-        showscale=True
-    ))
-    fig.update_layout(title="Water Parameter Heatmap")
-    st.plotly_chart(fig, use_container_width=True)
-
 def detect_elements(ph, tds, hardness, nitrate):
     elements = []
-    if tds > 500:
-        elements.append("Cesium")
-    if hardness > 200:
-        elements.append("Radium")
-    if nitrate > 45 or ph < 6.5:
+    if ph < 6.5 or ph > 8.5 or tds > 500:
         elements.append("Uranium")
+    if hardness > 200 or nitrate > 45:
+        elements.append("Cesium")
     if not elements:
         elements.append("No significant radioactive elements detected")
     return elements
 
 # ================= UI =================
 st.markdown("<h1 class='app-title'>💧☢️ Radioactive Water Contamination Detector</h1>", unsafe_allow_html=True)
-st.markdown("<p class='app-sub'>Futuristic System | Developed by Team Radiowave</p>", unsafe_allow_html=True)
+st.markdown("<p class='app-sub'>Futuristic Water Safety System | Developed by Team AquaShield</p>", unsafe_allow_html=True)
 
-tabs = st.tabs(["🔬 Contamination Check", "📊 Safety Meter", "⚠️ Radioactive Awareness", "🌡️ Radiation Map"])
+tabs = st.tabs(["🔬 Contamination Check", "📊 Safety Meter", "⚠️ Radioactive Awareness", "🌡️ Radiation Heatmap"])
 
 # ---- TAB 1 ----
 with tabs[0]:
@@ -206,7 +186,7 @@ with tabs[1]:
             fig.update_layout(
                 title=f"{param} Level",
                 barmode="overlay",
-                height=220, width=220,
+                height=220, width=220,  # small graphs
                 margin=dict(l=20, r=20, t=40, b=20)
             )
             st.plotly_chart(fig, use_container_width=False)
@@ -229,22 +209,31 @@ with tabs[1]:
 with tabs[2]:
     st.subheader("⚠️ Radioactive Water Awareness")
     st.write("""
-    - ☢️ Radioactive water exposure can cause **cancer, organ damage, and genetic mutations**.
-    - ☠️ Biological accumulation affects **animals and plants**.
-    - 💧 Continuous monitoring is **critical**.
+    - ☢️ Radioactive water exposure can cause **cancer, organ damage, and genetic mutations**.  
+    - ☠️ Animals and plants also suffer from **biological accumulation** of radioactive isotopes.  
+    - 💧 Continuous monitoring is **critical** for human survival.  
+    - 📎 [WHO Safe Drinking Water Guidelines](https://www.who.int/publications/i/item/9789241549950)
+    - 📎 [Science Article on Radioactive Contamination](https://www.nature.com/articles/s41598-020-71510-0)
+    - 📎 [News Report: Real-Life Radioactive Water Cases](https://www.bbc.com/news/world-54121277)
     """)
-    st.markdown("[Read more from WHO](https://www.who.int/news-room/fact-sheets/detail/radioactivity-in-water)")
-    st.markdown("[Media Article: Real-life suggestions](https://www.bbc.com/news/science-environment-56837908)")
 
 # ---- TAB 4 ----
 with tabs[3]:
     st.subheader("🌡️ Radiation Heatmap & Element Detection")
-    show_heat_map(ph, tds, hardness, nitrate)
-    elements = detect_elements(ph, tds, hardness, nitrate)
-    st.markdown("<b>Detected Elements:</b>", unsafe_allow_html=True)
-    for el in elements:
-        color = "red" if el != "No significant radioactive elements detected" else "green"
-        st.markdown(f"<span style='color:{color}'>{el}</span>", unsafe_allow_html=True)
 
-st.markdown("---")
-st.markdown('<p style="text-align:center; color:#FFD300;">👨‍💻 Developed by Team Radiowave</p>', unsafe_allow_html=True)
+    # Heatmap grid (soccer style)
+    grid_size = 4
+    x = []
+    y = []
+    color = []
+
+    def normalize(val, safe_min, safe_max):
+        if val < safe_min:
+            return 0
+        elif val > safe_max:
+            return 1
+        else:
+            return 0.5
+
+    parameters = [ph, tds, hardness, nitrate]
+    safe_ranges_vals = [(6.5, 8.5), (0, 500), (0, 200), (0, 45)]
