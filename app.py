@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
+import numpy as np
 
 # ================= PAGE CONFIG =================
 st.set_page_config(page_title="Radioactive Water Contamination Detector", layout="wide")
 
 # ================= CUSTOM CSS =================
-css_block ="""
+css_block = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 
@@ -24,7 +24,7 @@ html, body, [class*="css"] {
 /* Title & Subtitle */
 h1.app-title {
   text-align: center;
-  color: #FFD300;
+  color: #FFD300; /* Yellow radioactive title */
   font-size: 52px;
   margin-bottom: 4px;
   text-shadow: 0 0 10px #FFD300, 0 0 28px #FF7518;
@@ -74,6 +74,7 @@ p.app-sub {
 }
 </style>
 """
+
 st.markdown(css_block, unsafe_allow_html=True)
 
 # ================= FUNCTIONS =================
@@ -102,73 +103,39 @@ def show_risk_gauge(score):
     ))
     st.plotly_chart(fig, use_container_width=True)
 
-def show_safety_graph(ph, tds, hardness, nitrate):
-    safe_ranges = {
-        "pH": (6.5, 8.5),
-        "TDS": (0, 500),
-        "Hardness": (0, 200),
-        "Nitrate": (0, 45),
-    }
-    values = {"pH": ph, "TDS": tds, "Hardness": hardness, "Nitrate": nitrate}
-
-    fig = go.Figure()
-    for param, (low, high) in safe_ranges.items():
-        fig.add_trace(go.Bar(
-            x=[param],
-            y=[values[param]],
-            name=f"{param} Value",
-            marker_color="red" if values[param] < low or values[param] > high else "green"
-        ))
-        fig.add_trace(go.Bar(
-            x=[param],
-            y=[high],
-            name=f"{param} Safe Max",
-            marker_color="lightgreen",
-            opacity=0.5
-        ))
-
-    fig.update_layout(
-        title="Water Quality vs Safe Ranges",
-        barmode="overlay",
-        yaxis_title="Levels (mg/L or pH)"
-    )
+def show_heat_map(ph, tds, hardness, nitrate):
+    data = np.array([
+        [ph, tds, hardness, nitrate],
+        [ph, tds, hardness, nitrate],
+        [ph, tds, hardness, nitrate],
+        [ph, tds, hardness, nitrate]
+    ])
+    colorscale = [[0, 'green'], [0.5, 'yellow'], [1, 'red']]
+    fig = go.Figure(data=go.Heatmap(
+        z=data,
+        colorscale=colorscale,
+        showscale=True
+    ))
+    fig.update_layout(title="Water Parameter Heatmap")
     st.plotly_chart(fig, use_container_width=True)
 
-def predict_elements(ph, tds, hardness, nitrate):
-    elements_found = []
-    if tds > 450 and hardness > 150 and nitrate > 20:
-        elements_found.append("Uranium")
-    if tds > 500 and hardness > 180:
-        elements_found.append("Cesium")
-    if ph < 6.8 or hardness < 120:
-        elements_found.append("Radium")
-    if not elements_found:
-        elements_found.append("None detected")
-    return elements_found
-
-def show_radiation_heatmap(ph, tds, hardness, nitrate):
-    data = pd.DataFrame({
-        "Parameter": ["pH", "TDS", "Hardness", "Nitrate"],
-        "Value": [ph, tds, hardness, nitrate]
-    })
-    fig = px.density_heatmap(data, x="Parameter", y="Value", z="Value",
-                             color_continuous_scale="OrRd", height=400)
-    fig.update_layout(title="🔥 Radiation Heat Map Simulation")
-    st.plotly_chart(fig, use_container_width=True)
+def detect_elements(ph, tds, hardness, nitrate):
+    elements = []
+    if tds > 500:
+        elements.append("Cesium")
+    if hardness > 200:
+        elements.append("Radium")
+    if nitrate > 45 or ph < 6.5:
+        elements.append("Uranium")
+    if not elements:
+        elements.append("No significant radioactive elements detected")
+    return elements
 
 # ================= UI =================
 st.markdown("<h1 class='app-title'>💧☢️ Radioactive Water Contamination Detector</h1>", unsafe_allow_html=True)
-st.markdown("<p class='app-sub'>Futuristic Rule-Based System | Developed by Karthikeyan</p>", unsafe_allow_html=True)
+st.markdown("<p class='app-sub'>Futuristic System | Developed by Team Radiowave</p>", unsafe_allow_html=True)
 
-tabs = st.tabs([
-    "🔬 Contamination Check",
-    "📊 Safety Meter",
-    "⚠️ Radioactive Awareness",
-    "🌡️ Radiation Map",
-    "📜 History & Reports",
-    "📍 Location Tracking",
-    "📈 Trends & Insights"
-])
+tabs = st.tabs(["🔬 Contamination Check", "📊 Safety Meter", "⚠️ Radioactive Awareness", "🌡️ Radiation Map"])
 
 # ---- TAB 1 ----
 with tabs[0]:
@@ -177,15 +144,18 @@ with tabs[0]:
     tds = st.number_input("TDS (mg/L)", 0.0, 2000.0, 300.0)
     hardness = st.number_input("Hardness (mg/L)", 0.0, 1000.0, 150.0)
     nitrate = st.number_input("Nitrate (mg/L)", 0.0, 500.0, 20.0)
-    location = st.text_input("📍 Location (City/Area)")
+    location = st.text_input("📍 Location")
+
     if st.button("Run Analysis"):
         score = predict_contamination(ph, tds, hardness, nitrate)
+
         if score < 30:
             result = '<p class="glow-green">✅ Safe: No significant radioactive contamination detected.</p>'
         elif score < 60:
             result = '<p class="glow-red">⚠️ Moderate Risk: Some radioactive traces possible.</p>'
         else:
             result = '<p class="glow-red">☢️ High Risk: Potential radioactive contamination detected!</p>'
+
         st.markdown(result, unsafe_allow_html=True)
         show_risk_gauge(score)
 
@@ -206,57 +176,75 @@ with tabs[0]:
 # ---- TAB 2 ----
 with tabs[1]:
     st.subheader("📊 Safe vs Unsafe Water Levels")
-    show_safety_graph(ph, tds, hardness, nitrate)
+
+    safe_ranges = {
+        "pH": (6.5, 8.5, ph),
+        "TDS (mg/L)": (0, 500, tds),
+        "Hardness (mg/L)": (0, 200, hardness),
+        "Nitrate (mg/L)": (0, 45, nitrate)
+    }
+
+    for param, (low, high, value) in safe_ranges.items():
+        col1, col2 = st.columns([1.1, 1.0])  # small graph + value side by side
+
+        with col1:
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=[param],
+                y=[value],
+                name=f"{param} Value",
+                marker_color="red" if value < low or value > high else "green"
+            ))
+            fig.add_shape(
+                type="rect",
+                x0=-0.5, x1=0.5,
+                y0=low, y1=high,
+                fillcolor="lightgreen",
+                opacity=0.3,
+                line_width=0
+            )
+            fig.update_layout(
+                title=f"{param} Level",
+                barmode="overlay",
+                height=220, width=220,
+                margin=dict(l=20, r=20, t=40, b=20)
+            )
+            st.plotly_chart(fig, use_container_width=False)
+
+        with col2:
+            st.markdown(
+                f"""
+                <div style="font-size:18px; color:#FFD300;">
+                <b>{param}</b><br>
+                ✅ Safe Range: {low} – {high}<br>
+                💧 Your Value: <span style="color:{'red' if value < low or value > high else 'lightgreen'};">{value}</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    st.info("ℹ️ Compare your water parameters above with the WHO safe ranges.")
 
 # ---- TAB 3 ----
 with tabs[2]:
-    st.subheader("⚠️ Dangers of Radioactive Water")
-    st.image("radioactive_process.png", caption="Radioactive Contamination Process")
+    st.subheader("⚠️ Radioactive Water Awareness")
     st.write("""
-    - ☢️ Radioactive water exposure can cause **cancer, organ damage, and genetic mutations**.  
-    - ☠️ Animals and plants also suffer from **biological accumulation** of radioactive isotopes.  
-    - 💧 Continuous monitoring is **critical** for human survival.  
+    - ☢️ Radioactive water exposure can cause **cancer, organ damage, and genetic mutations**.
+    - ☠️ Biological accumulation affects **animals and plants**.
+    - 💧 Continuous monitoring is **critical**.
     """)
+    st.markdown("[Read more from WHO](https://www.who.int/news-room/fact-sheets/detail/radioactivity-in-water)")
+    st.markdown("[Media Article: Real-life suggestions](https://www.bbc.com/news/science-environment-56837908)")
 
 # ---- TAB 4 ----
 with tabs[3]:
-    st.subheader("🌡️ Radiation Heat Map & Possible Elements")
-    elements = predict_elements(ph, tds, hardness, nitrate)
-    st.markdown(f"**Possible Elements Present:** {', '.join(elements)}")
-    show_radiation_heatmap(ph, tds, hardness, nitrate)
-
-# ---- TAB 5 ----
-with tabs[4]:
-    st.subheader("📜 Water Quality History & Reports")
-    try:
-        history = pd.read_csv("water_data.csv")
-        st.dataframe(history)
-        st.download_button("📥 Download Full Report", data=history.to_csv(index=False),
-                           file_name="water_report.csv", mime="text/csv")
-    except:
-        st.warning("No historical data available yet.")
-
-# ---- TAB 6 ----
-with tabs[5]:
-    st.subheader("📍 Location-based Contamination")
-    try:
-        history = pd.read_csv("water_data.csv")
-        if "Location" in history.columns:
-            st.map(history.dropna(subset=["Location"]))
-        else:
-            st.info("Add location details in Contamination Check tab.")
-    except:
-        st.warning("No data to show on map.")
-
-# ---- TAB 7 ----
-with tabs[6]:
-    st.subheader("📈 Risk Trends Over Time")
-    try:
-        history = pd.read_csv("water_data.csv")
-        fig = px.line(history, x=history.index, y="RiskScore", title="Risk Score Trends Over Entries")
-        st.plotly_chart(fig, use_container_width=True)
-    except:
-        st.warning("No trend data available yet.")
+    st.subheader("🌡️ Radiation Heatmap & Element Detection")
+    show_heat_map(ph, tds, hardness, nitrate)
+    elements = detect_elements(ph, tds, hardness, nitrate)
+    st.markdown("<b>Detected Elements:</b>", unsafe_allow_html=True)
+    for el in elements:
+        color = "red" if el != "No significant radioactive elements detected" else "green"
+        st.markdown(f"<span style='color:{color}'>{el}</span>", unsafe_allow_html=True)
 
 st.markdown("---")
-st.markdown('<p style="text-align:center; color:#FFD300;">👨‍💻 Developed by Karthikeyan</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align:center; color:#FFD300;">👨‍💻 Developed by Team Radiowave</p>', unsafe_allow_html=True)
