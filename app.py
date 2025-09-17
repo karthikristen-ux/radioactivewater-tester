@@ -7,7 +7,7 @@ import plotly.express as px
 st.set_page_config(page_title="Radioactive Water Contamination Detector", layout="wide")
 
 # ================= CUSTOM CSS =================
-css_block = """
+css_block ="""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 
@@ -136,17 +136,14 @@ def show_safety_graph(ph, tds, hardness, nitrate):
 
 def predict_elements(ph, tds, hardness, nitrate):
     elements_found = []
-
     if tds > 450 and hardness > 150 and nitrate > 20:
         elements_found.append("Uranium")
     if tds > 500 and hardness > 180:
         elements_found.append("Cesium")
     if ph < 6.8 or hardness < 120:
         elements_found.append("Radium")
-
     if not elements_found:
         elements_found.append("None detected")
-
     return elements_found
 
 def show_radiation_heatmap(ph, tds, hardness, nitrate):
@@ -154,7 +151,6 @@ def show_radiation_heatmap(ph, tds, hardness, nitrate):
         "Parameter": ["pH", "TDS", "Hardness", "Nitrate"],
         "Value": [ph, tds, hardness, nitrate]
     })
-
     fig = px.density_heatmap(data, x="Parameter", y="Value", z="Value",
                              color_continuous_scale="OrRd", height=400)
     fig.update_layout(title="🔥 Radiation Heat Map Simulation")
@@ -164,28 +160,32 @@ def show_radiation_heatmap(ph, tds, hardness, nitrate):
 st.markdown("<h1 class='app-title'>💧☢️ Radioactive Water Contamination Detector</h1>", unsafe_allow_html=True)
 st.markdown("<p class='app-sub'>Futuristic Rule-Based System | Developed by Karthikeyan</p>", unsafe_allow_html=True)
 
-tabs = st.tabs(["🔬 Contamination Check", "📊 Safety Meter", "⚠️ Radioactive Awareness", "🌡️ Radiation Map"])
+tabs = st.tabs([
+    "🔬 Contamination Check",
+    "📊 Safety Meter",
+    "⚠️ Radioactive Awareness",
+    "🌡️ Radiation Map",
+    "📜 History & Reports",
+    "📍 Location Tracking",
+    "📈 Trends & Insights"
+])
 
 # ---- TAB 1 ----
 with tabs[0]:
     st.subheader("🔍 Enter Water Parameters")
-
     ph = st.number_input("pH Level", 0.0, 14.0, 7.0)
     tds = st.number_input("TDS (mg/L)", 0.0, 2000.0, 300.0)
     hardness = st.number_input("Hardness (mg/L)", 0.0, 1000.0, 150.0)
     nitrate = st.number_input("Nitrate (mg/L)", 0.0, 500.0, 20.0)
-    location = st.text_input("📍 Location")
-
+    location = st.text_input("📍 Location (City/Area)")
     if st.button("Run Analysis"):
         score = predict_contamination(ph, tds, hardness, nitrate)
-
         if score < 30:
             result = '<p class="glow-green">✅ Safe: No significant radioactive contamination detected.</p>'
         elif score < 60:
             result = '<p class="glow-red">⚠️ Moderate Risk: Some radioactive traces possible.</p>'
         else:
             result = '<p class="glow-red">☢️ High Risk: Potential radioactive contamination detected!</p>'
-
         st.markdown(result, unsafe_allow_html=True)
         show_risk_gauge(score)
 
@@ -224,6 +224,39 @@ with tabs[3]:
     elements = predict_elements(ph, tds, hardness, nitrate)
     st.markdown(f"**Possible Elements Present:** {', '.join(elements)}")
     show_radiation_heatmap(ph, tds, hardness, nitrate)
+
+# ---- TAB 5 ----
+with tabs[4]:
+    st.subheader("📜 Water Quality History & Reports")
+    try:
+        history = pd.read_csv("water_data.csv")
+        st.dataframe(history)
+        st.download_button("📥 Download Full Report", data=history.to_csv(index=False),
+                           file_name="water_report.csv", mime="text/csv")
+    except:
+        st.warning("No historical data available yet.")
+
+# ---- TAB 6 ----
+with tabs[5]:
+    st.subheader("📍 Location-based Contamination")
+    try:
+        history = pd.read_csv("water_data.csv")
+        if "Location" in history.columns:
+            st.map(history.dropna(subset=["Location"]))
+        else:
+            st.info("Add location details in Contamination Check tab.")
+    except:
+        st.warning("No data to show on map.")
+
+# ---- TAB 7 ----
+with tabs[6]:
+    st.subheader("📈 Risk Trends Over Time")
+    try:
+        history = pd.read_csv("water_data.csv")
+        fig = px.line(history, x=history.index, y="RiskScore", title="Risk Score Trends Over Entries")
+        st.plotly_chart(fig, use_container_width=True)
+    except:
+        st.warning("No trend data available yet.")
 
 st.markdown("---")
 st.markdown('<p style="text-align:center; color:#FFD300;">👨‍💻 Developed by Karthikeyan</p>', unsafe_allow_html=True)
