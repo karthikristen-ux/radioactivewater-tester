@@ -237,3 +237,49 @@ with tabs[3]:
 
     parameters = [ph, tds, hardness, nitrate]
     safe_ranges_vals = [(6.5, 8.5), (0, 500), (0, 200), (0, 45)]
+    idx = 0
+    for i in range(grid_size):
+        for j in range(grid_size):
+            param_val = parameters[idx % len(parameters)]
+            safe_min, safe_max = safe_ranges_vals[idx % len(parameters)]
+            x.append(j)
+            y.append(grid_size - i - 1)
+            color.append(normalize(param_val, safe_min, safe_max))
+            idx += 1
+
+    colorscale = [[0, 'green'], [0.5, 'yellow'], [1, 'red']]
+
+    fig = go.Figure(go.Scatter(
+        x=x,
+        y=y,
+        mode='markers',
+        marker=dict(
+            size=50,
+            color=color,
+            colorscale=colorscale,
+            line=dict(width=2, color='black')
+        ),
+        text=[f"Value: {parameters[i % len(parameters)]}" for i in range(grid_size**2)],
+        hoverinfo='text'
+    ))
+
+    fig.update_layout(
+        title="Radiation Heatmap (Soccer-style)",
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        width=500,
+        height=500,
+        plot_bgcolor='black'
+    )
+
+    st.plotly_chart(fig, use_container_width=False)
+
+    # Show elements
+    elements = detect_elements(ph, tds, hardness, nitrate)
+    st.markdown("<b>Detected Elements:</b>", unsafe_allow_html=True)
+    for el in elements:
+        color_el = "red" if el != "No significant radioactive elements detected" else "green"
+        st.markdown(f"<span style='color:{color_el}'>{el}</span>", unsafe_allow_html=True)
+
+st.markdown("---")
+st.markdown('<p style="text-align:center; color:#FFD300;">👨‍💻 Developed by Team AquaShield</p>', unsafe_allow_html=True)
